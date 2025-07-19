@@ -17,19 +17,30 @@ func NewFollowUseCase(followRepo follow.FollowRepository, userRepo users.UserRep
 }
 
 // Follow implements follow.FollowUsecase.
-func (f *followUseCase) Follow(followerID uuid.UUID, username string) error {
+func (f *followUseCase) Follow(followerID string, username string) error {
+	parsedFollowerID, err := uuid.Parse(followerID)
+	if err != nil {
+		return err
+	}
+
 	userToFollow, err := f.userRepo.GetUserByUsername(username)
 	if err != nil {
 		return err
 	}
-	return f.followRepo.Follow(followerID, userToFollow.ID)
+	return f.followRepo.Follow(parsedFollowerID, userToFollow.ID)
 }
 
 // Unfollow implements follow.FollowUsecase.
-func (f *followUseCase) Unfollow(followerID uuid.UUID, username string) error {
+func (f *followUseCase) Unfollow(followerID string, username string) error {
+	parsedFollowerID, err := uuid.Parse(followerID)
+
+	if err != nil {
+		return err
+	}
+
 	userToUnfollow, err := f.userRepo.GetUserByUsername(username)
 	if err != nil {
 		return err
 	}
-	return f.followRepo.Unfollow(followerID, userToUnfollow.ID)
+	return f.followRepo.Unfollow(parsedFollowerID, userToUnfollow.ID)
 }

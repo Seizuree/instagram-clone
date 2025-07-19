@@ -1,14 +1,18 @@
 package infrastructures
 
 import (
+	"context"
 	"core-services/config"
+	"encoding/json"
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// RabbitMQ holds the connection and channel for RabbitMQ operations.
 type RabbitMQ struct {
 	Conn *amqp.Connection
 	Ch   *amqp.Channel
@@ -45,19 +49,30 @@ func NewRabbitMQ(conf *config.Config) *RabbitMQ {
 	return rabbitInst
 }
 
-func (r *RabbitMQ) DeclareQueue(name string) (amqp.Queue, error) {
-	return r.Ch.QueueDeclare(
-		name,
+// PublishJSON publishes a message to a specific queue in JSON format.
+// It declares the queue to ensure it exists.
+func (r *RabbitMQ) PublishJSON(ctx context.Context, queueName string, data interface{}) error {
+	_, err := r.Ch.QueueDeclare(
+		queueName,
 		true,  // durable
 		false, // delete when unused
 		false, // exclusive
 		false, // no-wait
 		nil,   // arguments
 	)
-}
+	if err != nil {
+		return fmt.Errorf("failed to declare a queue: %w", err)
+	}
 
-func (r *RabbitMQ) PublishMessage(queueName string, body []byte) error {
-	return r.Ch.Publish(
+	body, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data to JSON: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	return r.Ch.PublishWithContext(ctx,
 		"",        // exchange
 		queueName, // routing key
 		false,     // mandatory
@@ -67,4 +82,53 @@ func (r *RabbitMQ) PublishMessage(queueName string, body []byte) error {
 			Body:        body,
 		},
 	)
+}
+
+// StartConsumer starts a consumer on a specified queue.
+// It takes a handler function to process incoming messages.
+func (r *RabbitMQ) StartConsumer(queueName string, handler func(d amqp.Delivery)) {
+	q, err := r.Ch.QueueDeclare(
+		queueName,
+		true,  // durable
+		false, // delete when unused
+		false, // exclusive
+		false, // no-wait
+		nil,   // arguments
+	)
+	if err != nil {
+		log.Fatalf("Failed to declare a queue for consumer: %s", err)
+	}
+
+	msgs, err := r.Ch.Consume(
+		q.Name,
+		"",    // consumer
+		true,  // auto-ack
+		false, // exclusive
+		false, // no-local
+		false, // no-wait
+		nil,   // args
+	)
+	if err != nil {
+		log.Fatalf("Failed to register a consumer: %s", err)
+	}
+
+	go func() {
+		for d := range msgs {
+			log.Printf("Received a message from queue %s", queueName)
+			handler(d)
+		}
+	}()
+
+	log.Printf("Consumer started on queue: %s. Waiting for messages.", q.Name)
+}
+
+// Close gracefully closes the RabbitMQ channel and connection.
+func (r *RabbitMQ) Close() {
+	if r.Ch != nil {
+		r.Ch.Close()
+	}
+	if r.Conn != nil {
+		r.Conn.Close()
+	}
+	log.Println("RabbitMQ connection closed.")
 }

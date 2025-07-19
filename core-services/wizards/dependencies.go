@@ -19,10 +19,11 @@ var (
 
 	UserDatabaseRepo   = userRepo.NewUserRepository(PostgresDatabase)
 	FollowDatabaseRepo = followRepo.NewFollowRepository(PostgresDatabase)
-	UserUseCase        = userUc.NewUserUseCase(UserDatabaseRepo)
+	UserUseCase        = userUc.NewUserUseCase(UserDatabaseRepo, RabbitMQ)
 	FollowUseCase      = followUc.NewFollowUseCase(FollowDatabaseRepo, UserDatabaseRepo)
 	UserHttp           = userHttp.NewUserHttp(UserUseCase)
 	FollowHttp         = followHttp.NewFollowHttp(FollowUseCase)
 
-	AuthMiddleware = middlewares.NewAuthMiddleware(Config)
+	AuthMiddleware  = middlewares.NewAuthMiddleware(Config)
+	ProxyMiddleware = middlewares.ProxyHeadersMiddleware()
 )

@@ -1,6 +1,7 @@
 package main
 
 import (
+	followEntities "core-services/domains/follow/entities"
 	userEntities "core-services/domains/users/entities"
 	"core-services/wizards"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 func main() {
 	wizards.PostgresDatabase.GetInstance().AutoMigrate(
 		&userEntities.User{},
+		&followEntities.Follow{},
 	)
 
 	router := gin.Default()

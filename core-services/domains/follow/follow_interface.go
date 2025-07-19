@@ -3,8 +3,8 @@ package follow
 import "github.com/google/uuid"
 
 type FollowUseCase interface {
-	Follow(followerID uuid.UUID, username string) error
-	Unfollow(followerID uuid.UUID, username string) error
+	Follow(followerID string, username string) error
+	Unfollow(followerID string, username string) error
 }
 
 type FollowRepository interface {

@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  core-db:
+    image: postgres:15.13
+    container_name: core-db
+    environment:
+      POSTGRES_USER: ${CORE_DB_USER}
+      POSTGRES_PASSWORD: ${CORE_DB_PASSWORD}
+      POSTGRES_DB: ${CORE_DB_NAME}
+    ports:
+      - '5433:5432'
+    volumes:
+      - core-postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  post-db:
+    image: postgres:15.13
+    container_name: post-db
+    environment:
+      POSTGRES_USER: ${POST_DB_USER}
+      POSTGRES_PASSWORD: ${POST_DB_PASSWORD}
+      POSTGRES_DB: ${POST_DB_NAME}
+    ports:
+      - '5434:5432'
+    volumes:
+      - post-postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  interaction-db:
+    image: postgres:15.13
+    container_name: interaction-db
+    environment:
+      POSTGRES_USER: ${INTERACTION_DB_USER}
+      POSTGRES_PASSWORD: ${INTERACTION_DB_PASSWORD}
+      POSTGRES_DB: ${INTERACTION_DB_NAME}
+    ports:
+      - '5435:5432'
+    volumes:
+      - interaction-postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  minio:
+    image: minio/minio
+    container_name: minio_storage
+    ports:
+      - '9005:9000'
+      - '9006:9001'
+    volumes:
+      - minio-data:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    networks:
+      - app-network
+
+  rabbitmq:
+    image: rabbitmq:3.9-management
+    container_name: rabbitmq
+    ports:
+      - '5670:5672'
+      - '15670:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    networks:
+      - app-network
+
+volumes:
+  core-postgres-data:
+  post-postgres-data:
+  interaction-postgres-data:
+  minio-data:
+
+networks:
+  app-network:
+    driver: bridge

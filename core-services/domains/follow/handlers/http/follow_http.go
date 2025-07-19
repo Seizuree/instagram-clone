@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type FollowHttp struct {
@@ -18,9 +17,9 @@ func NewFollowHttp(fc follow.FollowUseCase) *FollowHttp {
 
 func (h *FollowHttp) FollowUser(c *gin.Context) {
 	username := c.Param("username")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("userID")
 
-	if err := h.fc.Follow(userID.(uuid.UUID), username); err != nil {
+	if err := h.fc.Follow(userID.(string), username); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to follow user"})
 		return
 	}
@@ -29,9 +28,9 @@ func (h *FollowHttp) FollowUser(c *gin.Context) {
 
 func (h *FollowHttp) UnfollowUser(c *gin.Context) {
 	username := c.Param("username")
-	userID, _ := c.Get("user_id")
+	userID, _ := c.Get("userID")
 
-	if err := h.fc.Unfollow(userID.(uuid.UUID), username); err != nil {
+	if err := h.fc.Unfollow(userID.(string), username); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unfollow user"})
 		return
 	}

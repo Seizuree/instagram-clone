@@ -27,10 +27,11 @@ type (
 	}
 
 	Server struct {
-		BaseDomain        string
-		Port              int
-		JWTSecret         string
-		PaymentServiceURL string
+		BaseDomain            string
+		Port                  int
+		JWTSecret             string
+		PostServiceURL        string
+		InteractionServiceURL string
 	}
 
 	RabbitMQ struct {
@@ -76,7 +77,8 @@ func GetConfig() *Config {
 		config.Server.BaseDomain = os.Getenv("BASE_DOMAIN")
 		config.Server.Port, err = strconv.Atoi(os.Getenv("PORT"))
 		config.Server.JWTSecret = os.Getenv("JWT_SECRET")
-		config.Server.PaymentServiceURL = os.Getenv("PAYMENT_SERVICE_URL")
+		config.Server.PostServiceURL = os.Getenv("POST_SERVICE_URL")
+		config.Server.InteractionServiceURL = os.Getenv("INTERACTION_SERVICE_URL")
 
 		if err != nil {
 			panic(err)
