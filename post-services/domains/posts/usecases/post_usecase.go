@@ -24,31 +24,52 @@ func NewPostUseCase(postRepo posts.PostRepository, minioClient *infrastructures.
 
 // CreatePost implements posts.PostUseCase.
 func (p *postUseCase) CreatePost(userID uuid.UUID, caption string, fileHeader *multipart.FileHeader) (*entities.Post, error) {
-	file, err := fileHeader.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
+    file, err := fileHeader.Open()
+    if err != nil {
+        return nil, err
+    }
+    defer file.Close()
 
-	objectName := fmt.Sprintf("%s-%s", uuid.New().String(), fileHeader.Filename)
+    objectName := fmt.Sprintf("%s-%s", uuid.New().String(), fileHeader.Filename)
 
-	imageURL, err := p.minioClient.UploadFile(objectName, file, fileHeader.Size)
-	if err != nil {
-		return nil, err
-	}
+    // Upload original image
+    imageURL, err := p.minioClient.UploadFile(objectName, file, fileHeader.Size)
+    if err != nil {
+        return nil, err
+    }
 
-	post := &entities.Post{
-		UserID:   userID,
-		ImageURL: imageURL,
-		Caption:  caption,
-	}
+    // Re-open the file to generate thumbnail
+    thumbFile, err := fileHeader.Open()
+    if err != nil {
+        return nil, err
+    }
+    defer thumbFile.Close()
 
-	if err := p.postRepo.CreatePost(post); err != nil {
-		return nil, err
-	}
+    thumbnailBytes, err := generateThumbnail(thumbFile)
+    if err != nil {
+        return nil, err
+    }
 
-	return post, nil
+    thumbObjectName := fmt.Sprintf("thumb-%s", objectName)
+    thumbURL, err := p.minioClient.UploadBytes(thumbObjectName, thumbnailBytes)
+    if err != nil {
+        return nil, err
+    }
+
+    post := &entities.Post{
+        UserID:   userID,
+        ImageURL: imageURL,
+        ThumbURL: thumbURL,
+        Caption:  caption,
+    }
+
+    if err := p.postRepo.CreatePost(post); err != nil {
+        return nil, err
+    }
+
+    return post, nil
 }
+
 
 // GetPost implements posts.PostUseCase.
 func (p *postUseCase) GetPost(postID uuid.UUID) (*entities.Post, error) {
@@ -139,5 +160,28 @@ func (p *postUseCase) DeletePost(userID uuid.UUID, postID uuid.UUID) error {
 		}
 	}
 
+objectName := strings.Split(post.ImageURL, "/")[len(strings.Split(post.ImageURL, "/"))-1]
+thumbName := strings.Split(post.ThumbURL, "/")[len(strings.Split(post.ThumbURL, "/"))-1]
+
+_ = p.minioClient.DeleteFile(objectName)
+_ = p.minioClient.DeleteFile(thumbName)
+
+
 	return p.postRepo.DeletePost(postID)
+}
+
+func generateThumbnail(file multipart.File) ([]byte, error) {
+    img, _, err := image.Decode(file)
+    if err != nil {
+        return nil, err
+    }
+
+    thumbnail := resize.Resize(300, 0, img, resize.Lanczos3)
+
+    var buf bytes.Buffer
+    if err := jpeg.Encode(&buf, thumbnail, nil); err != nil {
+        return nil, err
+    }
+
+    return buf.Bytes(), nil
 }

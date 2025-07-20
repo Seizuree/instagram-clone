@@ -2,18 +2,23 @@ package wizards
 
 import (
 	"github.com/gin-gonic/gin"
+	"post-services/http" // adjust to actual path if needed
 )
 
 func RegisterServer(router *gin.Engine) {
 	apiGroup := router.Group("/api")
 	{
-		posts := apiGroup.Group("/posts")
+		postGroup := apiGroup.Group("/posts")
 		{
-			posts.POST("", PostHttp.CreatePost)
-			posts.GET("/:post_id", PostHttp.GetPost)
-			posts.GET("/user/:user_id", PostHttp.GetPostsByUser)
-			posts.PUT("/:post_id", PostHttp.UpdatePost)
-			posts.DELETE("/:post_id", PostHttp.DeletePost)
+			postGroup.POST("", http.PostHttp.CreatePost)                  // Upload image & generate thumbnail
+			postGroup.GET("/:post_id", http.PostHttp.GetPost)            // Get single post
+			postGroup.GET("/user/:user_id", http.PostHttp.GetPostsByUser) // Get all posts by user
+			postGroup.PUT("/:post_id", http.PostHttp.UpdatePost)         // Update caption
+			postGroup.DELETE("/:post_id", http.PostHttp.DeletePost)      // Delete post
+
+			// 🔧 New planned features
+			postGroup.GET("/timeline", http.PostHttp.GetTimeline)        // Timeline generation
+			postGroup.GET("/user/:user_id/count", http.PostHttp.CountUserPosts) // Post count
 		}
 	}
 }

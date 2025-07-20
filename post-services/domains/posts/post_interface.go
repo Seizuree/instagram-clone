@@ -14,6 +14,11 @@ type PostUseCase interface {
 	UpdatePost(userID, postID uuid.UUID, caption string) (*entities.Post, error)
 	DeletePost(userID, postID uuid.UUID) error
 	DeletePostsByUserID(userID uuid.UUID) error
+	Save(post *Post) error
+	CountByUser(userID uuid.UUID) (int64, error)
+
+	// 🆕 New features
+	GetTimeline(userID uuid.UUID) ([]entities.Post, error) // For timeline feature
 }
 
 type PostRepository interface {
@@ -23,4 +28,9 @@ type PostRepository interface {
 	UpdatePost(post *entities.Post) error
 	DeletePost(postID uuid.UUID) error
 	DeletePostsByUserID(userID uuid.UUID) error
+	Save(post *Post) error
+	CountByUser(userID uuid.UUID) (int64, error)
+
+	// 🆕 New feature
+	GetTimeline(userID uuid.UUID) ([]entities.Post, error)
 }
