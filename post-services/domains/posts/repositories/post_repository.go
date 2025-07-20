@@ -16,41 +16,55 @@ func NewPostRepository(db infrastructures.Database) posts.PostRepository {
 	return &postRepository{db: db}
 }
 
-// CreatePost implements posts.PostRepository.
-func (p *postRepository) CreatePost(post *entities.Post) error {
-	return p.db.GetInstance().Create(post).Error
+func (r *postRepository) CreatePost(post *entities.Post) error {
+	return r.db.GetInstance().Create(post).Error
 }
 
-// GetPostByID implements posts.PostRepository.
-func (p *postRepository) GetPostByID(postID uuid.UUID) (*entities.Post, error) {
+func (r *postRepository) GetPostByID(postID uuid.UUID) (*entities.Post, error) {
 	var post entities.Post
-	if err := p.db.GetInstance().First(&post, "id = ?", postID).Error; err != nil {
+	if err := r.db.GetInstance().First(&post, "id = ?", postID).Error; err != nil {
 		return nil, err
 	}
 	return &post, nil
 }
 
-// GetPostsByUserID implements posts.PostRepository.
-func (p *postRepository) GetPostsByUserID(userID uuid.UUID) (*[]entities.Post, error) {
+func (r *postRepository) GetPostsByUserID(userID uuid.UUID) (*[]entities.Post, error) {
 	var posts []entities.Post
-	if err := p.db.GetInstance().Where("user_id = ?", userID).Find(&posts).Error; err != nil {
+	if err := r.db.GetInstance().Where("user_id = ?", userID).Find(&posts).Error; err != nil {
 		return nil, err
 	}
 	return &posts, nil
 }
 
-// UpdatePost implements posts.PostRepository.
-func (p *postRepository) UpdatePost(post *entities.Post) error {
-	return p.db.GetInstance().Save(post).Error
+func (r *postRepository) UpdatePost(post *entities.Post) error {
+	return r.db.GetInstance().Save(post).Error
 }
 
-// DeletePostsByUserID implements posts.PostRepository.
-func (p *postRepository) DeletePostsByUserID(userID uuid.UUID) error {
-	// This performs a bulk delete of all posts matching the user_id.
-	return p.db.GetInstance().Where("user_id = ?", userID).Delete(&entities.Post{}).Error
+func (r *postRepository) DeletePost(postID uuid.UUID) error {
+	return r.db.GetInstance().Delete(&entities.Post{}, "id = ?", postID).Error
 }
 
-// DeletePost implements posts.PostRepository.
-func (p *postRepository) DeletePost(postID uuid.UUID) error {
-	return p.db.GetInstance().Delete(&entities.Post{}, "id = ?", postID).Error
+func (r *postRepository) DeletePostsByUserID(userID uuid.UUID) error {
+	return r.db.GetInstance().Where("user_id = ?", userID).Delete(&entities.Post{}).Error
+}
+
+func (r *postRepository) Save(post *entities.Post) error {
+	return r.db.GetInstance().Create(post).Error
+}
+
+func (r *postRepository) CountByUser(userID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.db.GetInstance().Model(&entities.Post{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
+}
+
+func (r *postRepository) GetTimeline(userID uuid.UUID) ([]entities.Post, error) {
+	var posts []entities.Post
+	err := r.db.GetInstance().
+		Where("user_id != ?", userID). // exclude user's own posts if needed
+		Order("created_at DESC").
+		Limit(20). // limit to latest 20
+		Find(&posts).Error
+
+	return posts, err
 }

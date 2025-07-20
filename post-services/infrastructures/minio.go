@@ -61,3 +61,14 @@ func (m *MinioClient) DeleteFile(objectName string) error {
 	}
 	return m.client.RemoveObject(context.Background(), m.bucketName, objectName, opts)
 }
+
+func (m *MinioClient) UploadBytes(objectName string, data []byte) (string, error) {
+    reader := bytes.NewReader(data)
+
+    _, err := m.client.PutObject(context.Background(), m.bucketName, objectName, reader, int64(len(data)), minio.PutObjectOptions{ContentType: "image/jpeg"})
+    if err != nil {
+        return "", err
+    }
+
+    return m.endpoint + "/" + m.bucketName + "/" + objectName, nil
+}
