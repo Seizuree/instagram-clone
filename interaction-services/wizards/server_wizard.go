@@ -16,6 +16,11 @@ func RegisterServer(router *gin.Engine) {
 			// Comment on a post
 			interactions.POST("/:post_id/comment", CommentHttp.CreateComment)
 			interactions.GET("/:post_id/comments", CommentHttp.GetCommentsByPostID)
+			
+			// folow
+			interactions.POST("/follow", followHtttp.Follow)
+			interactions.DELETE("/unfollow", followHttp.Unfollow)
+
 		}
 	}
 }
