@@ -27,8 +27,10 @@ type (
 	}
 
 	Server struct {
-		BaseDomain string
-		Port       int
+		BaseDomain     string
+		Port           int
+		CoreServiceURL string
+		PostServiceURL string
 	}
 
 	RabbitMQ struct {
@@ -73,6 +75,8 @@ func GetConfig() *Config {
 
 		config.Server.BaseDomain = os.Getenv("BASE_DOMAIN")
 		config.Server.Port, err = strconv.Atoi(os.Getenv("PORT"))
+		config.Server.CoreServiceURL = os.Getenv("CORE_SERVICE_URL")
+		config.Server.PostServiceURL = os.Getenv("POST_SERVICE_URL")
 
 		if err != nil {
 			panic(err)

@@ -1,79 +1,130 @@
 package usecases
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"log"
 	"mime/multipart"
+	"net/http"
+	"net/url"
+	"post-services/config"
 	"post-services/domains/posts"
 	"post-services/domains/posts/entities"
+	"post-services/domains/posts/models/responses"
 	"post-services/infrastructures"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/nfnt/resize"
 )
 
 type postUseCase struct {
 	postRepo    posts.PostRepository
 	minioClient *infrastructures.MinioClient
+	rabbitMQ    *infrastructures.RabbitMQ
+	config      *config.Config
 }
 
-func NewPostUseCase(postRepo posts.PostRepository, minioClient *infrastructures.MinioClient) posts.PostUseCase {
-	return &postUseCase{postRepo: postRepo, minioClient: minioClient}
+func NewPostUseCase(postRepo posts.PostRepository, minioClient *infrastructures.MinioClient, rabbitMQ *infrastructures.RabbitMQ, config *config.Config) posts.PostUseCase {
+	return &postUseCase{postRepo: postRepo, minioClient: minioClient, rabbitMQ: rabbitMQ, config: config}
 }
 
 // CreatePost implements posts.PostUseCase.
 func (p *postUseCase) CreatePost(userID uuid.UUID, caption string, fileHeader *multipart.FileHeader) (*entities.Post, error) {
-    file, err := fileHeader.Open()
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
-    objectName := fmt.Sprintf("%s-%s", uuid.New().String(), fileHeader.Filename)
+	postID := uuid.New()
 
-    // Upload original image
-    imageURL, err := p.minioClient.UploadFile(objectName, file, fileHeader.Size)
-    if err != nil {
-        return nil, err
-    }
+	fileNameParts := strings.Split(fileHeader.Filename, ".")
+	fileExtension := ""
 
-    // Re-open the file to generate thumbnail
-    thumbFile, err := fileHeader.Open()
-    if err != nil {
-        return nil, err
-    }
-    defer thumbFile.Close()
+	if len(fileNameParts) > 1 {
+		fileExtension = "." + fileNameParts[len(fileNameParts)-1]
+	}
 
-    thumbnailBytes, err := generateThumbnail(thumbFile)
-    if err != nil {
-        return nil, err
-    }
+	objectName := fmt.Sprintf("%s/%s/main%s", userID.String(), postID.String(), fileExtension)
+	thumbObjectName := fmt.Sprintf("%s/%s/thumb%s", userID.String(), postID.String(), fileExtension)
 
-    thumbObjectName := fmt.Sprintf("thumb-%s", objectName)
-    thumbURL, err := p.minioClient.UploadBytes(thumbObjectName, thumbnailBytes)
-    if err != nil {
-        return nil, err
-    }
+	imageURL, err := p.minioClient.UploadFile(objectName, file, fileHeader.Size)
+	if err != nil {
+		return nil, err
+	}
 
-    post := &entities.Post{
-        UserID:   userID,
-        ImageURL: imageURL,
-        ThumbURL: thumbURL,
-        Caption:  caption,
-    }
+	thumbFile, err := fileHeader.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer thumbFile.Close()
 
-    if err := p.postRepo.CreatePost(post); err != nil {
-        return nil, err
-    }
+	thumbnailBytes, err := generateThumbnail(thumbFile)
+	if err != nil {
+		return nil, err
+	}
 
-    return post, nil
+	thumbURL, err := p.minioClient.UploadBytes(thumbObjectName, thumbnailBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	post := &entities.Post{
+		ID:       postID,
+		UserID:   userID,
+		ImageURL: imageURL,
+		ThumbURL: thumbURL,
+		Caption:  caption,
+	}
+
+	if err := p.postRepo.CreatePost(post); err != nil {
+		return nil, err
+	}
+
+	queueName := "post.created"
+	message := map[string]interface{}{
+		"post_id":    post.ID.String(),
+		"user_id":    post.UserID.String(),
+		"image_url":  post.ImageURL,
+		"thumb_url":  post.ThumbURL,
+		"caption":    post.Caption,
+		"created_at": post.CreatedAt,
+	}
+	if err := p.rabbitMQ.PublishJSON(context.Background(), queueName, message); err != nil {
+		log.Printf("CRITICAL: Failed to publish post.created event for postID %s: %v", post.ID, err)
+	}
+
+	return post, nil
 }
 
-
 // GetPost implements posts.PostUseCase.
-func (p *postUseCase) GetPost(postID uuid.UUID) (*entities.Post, error) {
-	return p.postRepo.GetPostByID(postID)
+func (p *postUseCase) GetPost(postID uuid.UUID) (*responses.PostDetailResponse, error) {
+	post, err := p.postRepo.GetPostByID(postID)
+	if err != nil {
+		return nil, err
+	}
+
+	likeCount, commentCount, err := p.getInteractionCounts(postID)
+	if err != nil {
+		log.Printf("WARN: Failed to get interaction counts for post %s: %v", postID, err)
+		likeCount = 0
+		commentCount = 0
+	}
+
+	return &responses.PostDetailResponse{
+		ID:           post.ID.String(),
+		UserID:       post.UserID.String(),
+		ImageURL:     post.ImageURL,
+		Caption:      post.Caption,
+		LikeCount:    likeCount,
+		CommentCount: commentCount,
+	}, nil
 }
 
 // GetPostsByUserID implements posts.PostUseCase.
@@ -103,36 +154,19 @@ func (p *postUseCase) UpdatePost(userID uuid.UUID, postID uuid.UUID, caption str
 
 // DeletePostsByUserID implements posts.PostUseCase.
 func (p *postUseCase) DeletePostsByUserID(userID uuid.UUID) error {
-	log.Printf("Attempting to delete all posts for user %s", userID)
+	userFolderPrefix := userID.String() + "/"
 
-	// First, get all posts for the user to delete associated files from Minio.
-	posts, err := p.postRepo.GetPostsByUserID(userID)
-	if err != nil {
-		log.Printf("Error getting posts for user %s: %v", userID, err)
-		return fmt.Errorf("could not get posts for user %s: %w", userID, err)
+	if err := p.minioClient.DeleteUserFolder(userFolderPrefix); err != nil {
+		// Log the error but continue, as we still want to clear the DB records.
+		log.Printf("ERROR: Failed during bulk file deletion for user %s: %v", userID, err)
 	}
 
-	// Delete all associated files from Minio.
-	for _, post := range *posts {
-		urlParts := strings.Split(post.ImageURL, "/")
-		if len(urlParts) > 0 {
-			objectName := urlParts[len(urlParts)-1]
-			if err := p.minioClient.DeleteFile(objectName); err != nil {
-				// Log the error and continue. The database record will be deleted anyway.
-				log.Printf("ERROR: failed to delete file '%s' from Minio for post %s: %v", objectName, post.ID, err)
-			}
-		} else {
-			log.Printf("WARN: could not parse object name from URL: %s for post %s", post.ImageURL, post.ID)
-		}
-	}
-
-	// After attempting to delete all files, delete all post records from the database.
 	if err := p.postRepo.DeletePostsByUserID(userID); err != nil {
 		log.Printf("Error deleting posts from repository for user %s: %v", userID, err)
 		return fmt.Errorf("could not delete posts from database for user %s: %w", userID, err)
 	}
 
-	log.Printf("Successfully deleted all posts and associated files for user %s", userID)
+	log.Printf("Successfully processed deletion for user %s", userID)
 	return nil
 }
 
@@ -147,41 +181,77 @@ func (p *postUseCase) DeletePost(userID uuid.UUID, postID uuid.UUID) error {
 		return errors.New("user not authorized to delete this post")
 	}
 
-	// Extract object name from URL
-	urlParts := strings.Split(post.ImageURL, "/")
-	if len(urlParts) == 0 {
-		log.Printf("WARN: could not parse object name from URL: %s", post.ImageURL)
-	} else {
-		objectName := urlParts[len(urlParts)-1]
-		if err := p.minioClient.DeleteFile(objectName); err != nil {
-			// Log the error but proceed with DB deletion.
-			// In a production system, you might add this to a retry queue.
-			log.Printf("ERROR: failed to delete file '%s' from Minio: %v", objectName, err)
+	extractObjectKey := func(fileURL string) string {
+		parsedURL, err := url.Parse(fileURL)
+		if err != nil {
+			return ""
 		}
+		parts := strings.Split(strings.TrimPrefix(parsedURL.Path, "/"), "/")
+		if len(parts) > 1 {
+			return strings.Join(parts[1:], "/")
+		}
+		return ""
 	}
 
-objectName := strings.Split(post.ImageURL, "/")[len(strings.Split(post.ImageURL, "/"))-1]
-thumbName := strings.Split(post.ThumbURL, "/")[len(strings.Split(post.ThumbURL, "/"))-1]
+	objectName := extractObjectKey(post.ImageURL)
+	thumbName := extractObjectKey(post.ThumbURL)
 
-_ = p.minioClient.DeleteFile(objectName)
-_ = p.minioClient.DeleteFile(thumbName)
+	if objectName != "" {
+		if err := p.minioClient.DeleteFile(objectName); err != nil {
+			log.Printf("ERROR: Failed to delete main image '%s' from Minio for post %s: %v", objectName, postID, err)
+		}
+	} else {
+		log.Printf("WARN: Could not extract object key from ImageURL: %s", post.ImageURL)
+	}
 
+	if thumbName != "" {
+		if err := p.minioClient.DeleteFile(thumbName); err != nil {
+			log.Printf("ERROR: Failed to delete thumbnail '%s' from Minio for post %s: %v", thumbName, postID, err)
+		}
+	} else {
+		log.Printf("WARN: Could not extract object key from ThumbURL: %s", post.ThumbURL)
+	}
 
 	return p.postRepo.DeletePost(postID)
 }
 
 func generateThumbnail(file multipart.File) ([]byte, error) {
-    img, _, err := image.Decode(file)
-    if err != nil {
-        return nil, err
-    }
+	img, _, err := image.Decode(file)
+	if err != nil {
+		return nil, err
+	}
 
-    thumbnail := resize.Resize(300, 0, img, resize.Lanczos3)
+	thumbnail := resize.Resize(300, 0, img, resize.Lanczos3)
 
-    var buf bytes.Buffer
-    if err := jpeg.Encode(&buf, thumbnail, nil); err != nil {
-        return nil, err
-    }
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, thumbnail, nil); err != nil {
+		return nil, err
+	}
 
-    return buf.Bytes(), nil
+	return buf.Bytes(), nil
+}
+
+func (p *postUseCase) CountUserPosts(userID uuid.UUID) (int64, error) {
+	return p.postRepo.CountUserPosts(userID)
+}
+
+func (p *postUseCase) getInteractionCounts(postID uuid.UUID) (likeCount int64, commentCount int64, err error) {
+	interactionURL := p.config.Server.InteractionServiceURL
+	resp, err := http.Get(fmt.Sprintf("%s/api/internal/interactions/%s/counts", interactionURL, postID))
+	if err != nil {
+		return 0, 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0, fmt.Errorf("interaction-service returned non-OK status: %d", resp.StatusCode)
+	}
+
+	var result responses.PostInteractionCounts
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return 0, 0, err
+	}
+
+	return result.LikeCount, result.CommentCount, nil
 }

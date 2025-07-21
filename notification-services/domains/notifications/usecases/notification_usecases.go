@@ -3,13 +3,13 @@ package usecases
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"notification-services/config"
 	"notification-services/domains/notifications"
 	"notification-services/domains/notifications/entities"
 	"notification-services/domains/notifications/handlers/websocket"
+	"notification-services/domains/notifications/models/responses"
 	"notification-services/events"
 	"time"
 
@@ -35,27 +35,26 @@ func NewNotificationUseCase(
 }
 
 // getPostOwnerID makes a real API call to post-services to find the owner of a post.
-func (uc *notificationUseCase) getPostOwnerID(postID uuid.UUID) (uuid.UUID, error) {
+func (uc *notificationUseCase) getPostOwnerID(userID, postID uuid.UUID) (uuid.UUID, error) {
 	endpoint := fmt.Sprintf("%s/api/internal/posts/%s", uc.cfg.Server.PostServiceURL, postID)
-	resp, err := http.Get(endpoint)
+
+	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to call post-service: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	req.Header.Add("X-User-ID", userID.String())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to contact post-service: %w", err)
+	}
+
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return uuid.Nil, fmt.Errorf("post-service returned non-200 status: %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to read response body from post-service: %w", err)
-	}
-
-	var postResponse struct {
-		UserID uuid.UUID `json:"user_id"`
-	}
-	if err := json.Unmarshal(body, &postResponse); err != nil {
+	var postResponse responses.PostResponse
+	if err := json.NewDecoder(resp.Body).Decode(&postResponse); err != nil {
 		return uuid.Nil, fmt.Errorf("failed to unmarshal post response: %w", err)
 	}
 
@@ -75,15 +74,8 @@ func (uc *notificationUseCase) getUsername(userID uuid.UUID) (string, error) {
 		return "", fmt.Errorf("core-service returned non-200 status: %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body from core-service: %w", err)
-	}
-
-	var userResponse struct {
-		Username string `json:"username"`
-	}
-	if err := json.Unmarshal(body, &userResponse); err != nil {
+	var userResponse responses.UserResponse
+	if err := json.NewDecoder(resp.Body).Decode(&userResponse); err != nil {
 		return "", fmt.Errorf("failed to unmarshal user response: %w", err)
 	}
 
@@ -92,7 +84,7 @@ func (uc *notificationUseCase) getUsername(userID uuid.UUID) (string, error) {
 
 // CreateLikeNotification handles the logic for a "like" event.
 func (uc *notificationUseCase) CreateLikeNotification(event *events.LikeCreatedEvent) error {
-	receiverID, err := uc.getPostOwnerID(event.PostID)
+	receiverID, err := uc.getPostOwnerID(event.SenderID, event.PostID)
 	if err != nil {
 		return fmt.Errorf("could not get post owner for like event: %w", err)
 	}
@@ -126,7 +118,7 @@ func (uc *notificationUseCase) CreateLikeNotification(event *events.LikeCreatedE
 
 // CreateCommentNotification handles the logic for a "comment" event.
 func (uc *notificationUseCase) CreateCommentNotification(event *events.CommentCreatedEvent) error {
-	receiverID, err := uc.getPostOwnerID(event.PostID)
+	receiverID, err := uc.getPostOwnerID(event.SenderID, event.PostID)
 	if err != nil {
 		return fmt.Errorf("could not get post owner for comment event: %w", err)
 	}

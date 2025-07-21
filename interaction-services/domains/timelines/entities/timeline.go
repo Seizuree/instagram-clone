@@ -6,7 +6,9 @@ import (
 	"github.com/google/uuid"
 )
 
-type TimelineItem struct {
+type Timeline struct {
+	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
+	OwnerID   uuid.UUID `gorm:"not null;index"`
 	PostID    uuid.UUID `json:"post_id"`
 	UserID    uuid.UUID `json:"user_id"`
 	ImageURL  string    `json:"image_url"`

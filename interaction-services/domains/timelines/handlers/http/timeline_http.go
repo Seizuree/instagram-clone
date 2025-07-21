@@ -8,12 +8,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type TimelineHandler struct {
+type TimelineHttp struct {
 	usecase timelines.TimelineUseCase
 }
 
-func NewTimelineHandler(u timelines.TimelineUseCase) *TimelineHandler {
-	return &TimelineHandler{usecase: u}
+func NewTimelineHttp(u timelines.TimelineUseCase) *TimelineHttp {
+	return &TimelineHttp{usecase: u}
 }
 
 func getUserIDFromHeader(c *gin.Context) (uuid.UUID, error) {
@@ -21,7 +21,7 @@ func getUserIDFromHeader(c *gin.Context) (uuid.UUID, error) {
 	return uuid.Parse(userIDStr)
 }
 
-func (h *TimelineHandler) GetTimeline(c *gin.Context) {
+func (h *TimelineHttp) GetTimeline(c *gin.Context) {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or missing X-User-ID"})

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"post-services/domains/posts"
+	"post-services/domains/posts/models/requests"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -36,10 +37,16 @@ func (h *PostHttp) CreatePost(c *gin.Context) {
 		return
 	}
 
-	caption := c.PostForm("caption")
 	fileHeader, err := c.FormFile("image")
+	caption := c.PostForm("caption")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "image file is required"})
+		return
+	}
+
+	const maxFileSize = 10 * 1024 * 1024
+	if fileHeader.Size > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file size exceeds the 10MB limit"})
 		return
 	}
 
@@ -103,9 +110,8 @@ func (h *PostHttp) UpdatePost(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		Caption string `json:"caption" binding:"required"`
-	}
+	var req requests.PostUpdateRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -139,4 +145,26 @@ func (h *PostHttp) DeletePost(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "post deleted successfully"})
+}
+
+func (h *PostHttp) CountUserPosts(c *gin.Context) {
+	_, err := getUserIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	count, err := h.pc.CountUserPosts(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count user posts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"count": count})
 }

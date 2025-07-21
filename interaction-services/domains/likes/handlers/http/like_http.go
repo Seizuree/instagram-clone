@@ -4,6 +4,7 @@ import (
 	"errors"
 	"interaction-services/domains/likes"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -43,6 +44,14 @@ func (h *LikeHttp) LikePost(c *gin.Context) {
 	}
 
 	if err := h.lc.LikePost(userID, postID); err != nil {
+		if strings.Contains(err.Error(), "post not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if strings.Contains(err.Error(), "already liked") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to like post"})
 		return
 	}
@@ -64,6 +73,10 @@ func (h *LikeHttp) UnlikePost(c *gin.Context) {
 	}
 
 	if err := h.lc.UnlikePost(userID, postID); err != nil {
+		if strings.Contains(err.Error(), "not liked") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unlike post"})
 		return
 	}

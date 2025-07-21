@@ -124,7 +124,20 @@ func (u *userUseCase) GetProfile(username string) (*responses.UserProfileRespons
 
 func (u *userUseCase) getPostCount(userID uuid.UUID) (int64, error) {
 	postServiceURL := u.config.Server.PostServiceURL
-	resp, err := http.Get(fmt.Sprintf("%s/api/posts/user/%s/count", postServiceURL, userID.String()))
+	endpoint := fmt.Sprintf("%s/api/posts/user/%s/count", postServiceURL, userID.String())
+
+	// Create a new request
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add the X-User-ID header
+	req.Header.Add("X-User-ID", userID.String())
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return 0, err
 	}
@@ -135,7 +148,6 @@ func (u *userUseCase) getPostCount(userID uuid.UUID) (int64, error) {
 	}
 
 	var result responses.UserPostCountResponse
-
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
 	}

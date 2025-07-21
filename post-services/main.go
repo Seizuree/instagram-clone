@@ -13,10 +13,11 @@ func main() {
 		&entities.Post{},
 	)
 
-	// Start the RabbitMQ consumer for user deletion events
 	wizards.StartUserDeletedConsumer(wizards.RabbitMQ, wizards.PostUseCase)
 
 	router := gin.Default()
+	router.MaxMultipartMemory = 64 << 20
+	router.RedirectTrailingSlash = false
 
 	wizards.RegisterServer(router)
 

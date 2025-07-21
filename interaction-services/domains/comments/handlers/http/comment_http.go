@@ -4,6 +4,7 @@ import (
 	"errors"
 	"interaction-services/domains/comments"
 	"interaction-services/domains/comments/models/requests"
+	"strings"
 
 	"net/http"
 
@@ -52,6 +53,10 @@ func (h *CommentHttp) CreateComment(c *gin.Context) {
 
 	comment, err := h.cc.CreateComment(userID, postID, req.Comment)
 	if err != nil {
+		if strings.Contains(err.Error(), "post not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create comment"})
 		return
 	}

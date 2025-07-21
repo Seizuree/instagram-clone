@@ -15,6 +15,6 @@ var (
 	MinioClient      = infrastructures.NewMinioClient(Config)
 
 	PostDatabaseRepo = repositories.NewPostRepository(PostgresDatabase)
-	PostUseCase      = usecases.NewPostUseCase(PostDatabaseRepo, MinioClient)
+	PostUseCase      = usecases.NewPostUseCase(PostDatabaseRepo, MinioClient, RabbitMQ, Config)
 	PostHttp         = http.NewPostHttp(PostUseCase)
 )

@@ -1,62 +1,26 @@
 package wizards
 
-import (
-	"interaction-services/domains/comments/http"
-	CommentHttp "interaction-services/domains/comments/http"
-	LikeHttp "interaction-services/domains/likes/http"
-	FollowHttp "interaction-services/domains/follows/http"
-	TimelineHttp "interaction-services/domains/timelines/http"
+import "github.com/gin-gonic/gin"
 
-	CommentRepo "interaction-services/domains/comments/repositories"
-	LikeRepo "interaction-services/domains/likes/repositories"
-	FollowRepo "interaction-services/domains/follows/repositories"
-	TimelineRepo "interaction-services/domains/timelines/repositories"
-
-	CommentUsecase "interaction-services/domains/comments/usecases"
-	LikeUsecase "interaction-services/domains/likes/usecases"
-	FollowUsecase "interaction-services/domains/follows/usecases"
-	TimelineUsecase "interaction-services/domains/timelines/usecases"
-
-	"interaction-services/infrastructures"
-
-	"github.com/gin-gonic/gin"
-)
-
-func RegisterServer(router *gin.Engine, db infrastructures.Database) {
+func RegisterServer(router *gin.Engine) {
 	apiGroup := router.Group("/api")
 
 	// === INTERACTIONS ===
 	interactions := apiGroup.Group("/interactions")
 	{
 		// LIKE
-		likeRepo := LikeRepo.NewLikeRepository(db)
-		likeUC := LikeUsecase.NewLikeUseCase(likeRepo)
-		likeHandler := LikeHttp.NewLikeHandler(likeUC)
-		interactions.POST("/:post_id/like", likeHandler.LikePost)
-		interactions.DELETE("/:post_id/like", likeHandler.UnlikePost)
+		interactions.POST("/:post_id/like", LikeHttp.LikePost)
+		interactions.DELETE("/:post_id/like", LikeHttp.UnlikePost)
 
 		// COMMENT
-		commentRepo := CommentRepo.NewCommentRepository(db)
-		commentUC := CommentUsecase.NewCommentUseCase(commentRepo)
-		commentHandler := CommentHttp.NewCommentHandler(commentUC)
-		interactions.POST("/:post_id/comment", commentHandler.CreateComment)
-		interactions.GET("/:post_id/comments", commentHandler.GetCommentsByPostID)
-
-		// FOLLOW
-		followRepo := FollowRepo.NewFollowRepository(db)
-		followUC := FollowUsecase.NewFollowUseCase(followRepo)
-		followHandler := FollowHttp.NewFollowHandler(followUC)
-		interactions.POST("/follow", followHandler.Follow)
-		interactions.DELETE("/unfollow", followHandler.Unfollow)
+		interactions.POST("/:post_id/comment", CommentHttp.CreateComment)
+		interactions.GET("/:post_id/comments", CommentHttp.GetCommentsByPostID)
+		// TIMELINE - Move this route here
+		interactions.GET("/timeline", TimelineHttp.GetTimeline)
 	}
 
-	// === TIMELINE ===
-	timelineRepo := TimelineRepo.NewTimelineRepository(db)
-	timelineUC := TimelineUsecase.NewTimelineUseCase(timelineRepo)
-	timelineHandler := TimelineHttp.NewTimelineHandler(timelineUC)
-
-	timeline := apiGroup.Group("/timeline")
+	internalGroup := router.Group("/api/internal")
 	{
-		timeline.GET("/", timelineHandler.GetTimeline)
+		internalGroup.GET("/interactions/:post_id/counts", InternalHttp.GetInteractionCounts)
 	}
 }

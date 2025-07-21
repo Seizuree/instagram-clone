@@ -6,7 +6,6 @@ import (
 	"image/jpeg"
 	_ "image/png"
 	"io"
-	"log"
 
 	"github.com/nfnt/resize"
 )

@@ -31,3 +31,9 @@ func (c *commentRepository) GetCommentsByPostID(postID uuid.UUID) ([]*entities.C
 	}
 	return comments, nil
 }
+
+func (c *commentRepository) CountComments(postID uuid.UUID) (int64, error) {
+	var count int64
+	err := c.db.GetInstance().Model(&entities.Comment{}).Where("post_id = ?", postID).Count(&count).Error
+	return count, err
+}

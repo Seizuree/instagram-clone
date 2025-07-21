@@ -48,23 +48,8 @@ func (r *postRepository) DeletePostsByUserID(userID uuid.UUID) error {
 	return r.db.GetInstance().Where("user_id = ?", userID).Delete(&entities.Post{}).Error
 }
 
-func (r *postRepository) Save(post *entities.Post) error {
-	return r.db.GetInstance().Create(post).Error
-}
-
-func (r *postRepository) CountByUser(userID uuid.UUID) (int64, error) {
+func (r *postRepository) CountUserPosts(userID uuid.UUID) (int64, error) {
 	var count int64
 	err := r.db.GetInstance().Model(&entities.Post{}).Where("user_id = ?", userID).Count(&count).Error
 	return count, err
-}
-
-func (r *postRepository) GetTimeline(userID uuid.UUID) ([]entities.Post, error) {
-	var posts []entities.Post
-	err := r.db.GetInstance().
-		Where("user_id != ?", userID). // exclude user's own posts if needed
-		Order("created_at DESC").
-		Limit(20). // limit to latest 20
-		Find(&posts).Error
-
-	return posts, err
 }
