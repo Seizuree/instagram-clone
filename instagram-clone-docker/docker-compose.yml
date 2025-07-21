@@ -43,6 +43,20 @@ services:
     networks:
       - app-network
 
+  notification-db:
+    image: postgres:15.13
+    container_name: notification-db
+    environment:
+      POSTGRES_USER: ${NOTIFICATION_DB_USER}
+      POSTGRES_PASSWORD: ${NOTIFICATION_DB_PASSWORD}
+      POSTGRES_DB: ${NOTIFICATION_DB_NAME}
+    ports:
+      - '5436:5432' # Expose on a new port
+    volumes:
+      - notification-postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
   minio:
     image: minio/minio
     container_name: minio_storage
@@ -74,6 +88,7 @@ volumes:
   core-postgres-data:
   post-postgres-data:
   interaction-postgres-data:
+  notification-postgres-data:
   minio-data:
 
 networks:
