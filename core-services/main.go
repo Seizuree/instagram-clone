@@ -16,6 +16,7 @@ func main() {
 	)
 
 	router := gin.Default()
+	router.MaxMultipartMemory = 64 << 20
 
 	wizards.RegisterServer(router)
 
