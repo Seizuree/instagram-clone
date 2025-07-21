@@ -22,3 +22,7 @@ type UserUpdateResponse struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 }
+
+type UserPostCountResponse struct {
+	Count int64 `json:"count"`
+}

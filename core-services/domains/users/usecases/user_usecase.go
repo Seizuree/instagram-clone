@@ -134,9 +134,7 @@ func (u *userUseCase) getPostCount(userID uuid.UUID) (int64, error) {
 		return 0, fmt.Errorf("post-service returned non-OK status: %d", resp.StatusCode)
 	}
 
-	var result struct {
-		Count int64 `json:"count"`
-	}
+	var result responses.UserPostCountResponse
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return 0, err
