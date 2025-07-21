@@ -2,6 +2,7 @@ package http
 
 import (
 	"interaction-services/domains/timelines"
+	"interaction-services/domains/timelines/entities"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -35,4 +36,25 @@ func (h *TimelineHttp) GetTimeline(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, timeline)
+}
+
+func (h *TimelineHttp) AddPostsToTimeline(c *gin.Context) {
+	userID, err := getUserIDFromHeader(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or missing X-User-ID"})
+		return
+	}
+
+	var posts []*entities.Timeline
+	if err := c.ShouldBindJSON(&posts); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.usecase.AddPostsToFollowerTimeline(userID, posts); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add posts to timeline"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "timeline updated successfully"})
 }

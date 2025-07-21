@@ -22,5 +22,6 @@ func RegisterServer(router *gin.Engine) {
 	internalGroup := router.Group("/api/internal")
 	{
 		internalGroup.GET("/interactions/:post_id/counts", InternalHttp.GetInteractionCounts)
+		internalGroup.POST("/timelines", TimelineHttp.AddPostsToTimeline)
 	}
 }

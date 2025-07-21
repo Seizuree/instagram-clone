@@ -33,3 +33,10 @@ func (t *timelineRepo) AddPostToTimeline(timelineEntry *entities.Timeline) error
 	timelineEntry.ID = uuid.New()
 	return t.db.GetInstance().Create(timelineEntry).Error
 }
+
+func (t *timelineRepo) AddPostsToTimeline(timelineEntries []*entities.Timeline) error {
+	for i := range timelineEntries {
+		timelineEntries[i].ID = uuid.New()
+	}
+	return t.db.GetInstance().CreateInBatches(timelineEntries, 100).Error
+}

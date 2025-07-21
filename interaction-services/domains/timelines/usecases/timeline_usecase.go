@@ -97,3 +97,21 @@ func (u *timelineUseCase) AddPostToFollowerTimelines(event *events.PostCreatedEv
 func (u *timelineUseCase) GetTimeline(userID uuid.UUID) ([]entities.Timeline, error) {
 	return u.repo.GetTimelineForUser(userID)
 }
+
+func (u *timelineUseCase) AddPostsToFollowerTimeline(userID uuid.UUID, posts []*entities.Timeline) error {
+	var timelineEntries []*entities.Timeline
+
+	for _, post := range posts {
+		timelineEntries = append(timelineEntries, &entities.Timeline{
+			OwnerID:   userID,
+			PostID:    post.PostID,
+			UserID:    post.UserID,
+			ImageURL:  post.ImageURL,
+			ThumbURL:  post.ThumbURL,
+			Caption:   post.Caption,
+			CreatedAt: post.CreatedAt,
+		})
+	}
+
+	return u.repo.AddPostsToTimeline(timelineEntries)
+}

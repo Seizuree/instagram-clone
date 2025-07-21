@@ -82,13 +82,21 @@ func (h *PostHttp) GetPost(c *gin.Context) {
 }
 
 func (h *PostHttp) GetPostsByUser(c *gin.Context) {
-	userID, err := getUserIDFromHeader(c)
+	_, err := getUserIDFromHeader(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	posts, err := h.pc.GetPostsByUserID(userID)
+	// The user ID from the URL parameter is the user whose posts we need to fetch (the followed user).
+	// This is the correct ID to use.
+	userIDToFetch, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id in URL parameter"})
+		return
+	}
+
+	posts, err := h.pc.GetPostsByUserID(userIDToFetch)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get posts"})
 		return

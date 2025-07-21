@@ -20,7 +20,7 @@ var (
 	UserDatabaseRepo   = userRepo.NewUserRepository(PostgresDatabase)
 	FollowDatabaseRepo = followRepo.NewFollowRepository(PostgresDatabase)
 	UserUseCase        = userUc.NewUserUseCase(UserDatabaseRepo, FollowDatabaseRepo, RabbitMQ)
-	FollowUseCase      = followUc.NewFollowUseCase(FollowDatabaseRepo, UserDatabaseRepo, RabbitMQ)
+	FollowUseCase      = followUc.NewFollowUseCase(FollowDatabaseRepo, UserDatabaseRepo, RabbitMQ, Config)
 	UserHttp           = userHttp.NewUserHttp(UserUseCase)
 	FollowHttp         = followHttp.NewFollowHttp(FollowUseCase)
 
