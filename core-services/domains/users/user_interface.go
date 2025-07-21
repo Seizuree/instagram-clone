@@ -13,7 +13,7 @@ type UserUseCase interface {
 	Login(req *requests.UserLoginRequest) (*responses.UserLoginResponse, error)
 	GetMe(userID uuid.UUID) (*responses.UserProfileResponse, error)
 	GetProfile(username string) (*responses.UserProfileResponse, error)
-	UpdateUser(userID uuid.UUID, req *requests.UserUpdateRequest) (*responses.UserProfileResponse, error)
+	UpdateUser(userID uuid.UUID, req *requests.UserUpdateRequest) (*responses.UserUpdateResponse, error)
 	DeleteUser(userID uuid.UUID) error
 }
 

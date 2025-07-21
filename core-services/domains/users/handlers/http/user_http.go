@@ -3,6 +3,7 @@ package http
 import (
 	"core-services/domains/users"
 	"core-services/domains/users/models/requests"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -96,12 +97,31 @@ func (h *UserHttp) GetMe(c *gin.Context) {
 
 func (h *UserHttp) GetProfile(c *gin.Context) {
 	username := c.Param("username")
+	fmt.Printf("%s", username)
 	user, err := h.uc.GetProfile(username)
 
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHttp) GetUserByID(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id format"})
+		return
+	}
+
+	// Note: We are using GetMe which fetches a user by ID.
+	// In a real app, you might create a dedicated GetUserByID use case.
+	user, err := h.uc.GetMe(userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, user)
 }
 
@@ -134,8 +154,6 @@ func (h *UserHttp) UpdateUser(c *gin.Context) {
 }
 
 func (h *UserHttp) DeleteUser(c *gin.Context) {
-	// Get the userID from the context, which is set by the auth middleware.
-	// This ensures that a user can only delete themselves.
 	userIDStr, exists := c.Get("userID")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in token"})
@@ -153,5 +171,5 @@ func (h *UserHttp) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusNoContent)
+	c.JSON(http.StatusNoContent, gin.H{"message": "user have been deleted"})
 }

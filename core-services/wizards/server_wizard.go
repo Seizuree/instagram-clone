@@ -21,7 +21,7 @@ func RegisterServer(router *gin.Engine) {
 		{
 			userRoutes.GET("/me", UserHttp.GetMe)
 			userRoutes.GET("/:username", UserHttp.GetProfile)
-			userRoutes.PUT("", UserHttp.UpdateUser) // PUT /api/users (updates the authenticated user)
+			userRoutes.PUT("", UserHttp.UpdateUser)    // PUT /api/users (updates the authenticated user)
 			userRoutes.DELETE("", UserHttp.DeleteUser) // DELETE /api/users (deletes the authenticated user)
 			userRoutes.POST("/follow/:username", FollowHttp.FollowUser)
 			userRoutes.POST("/unfollow/:username", FollowHttp.UnfollowUser)
@@ -48,5 +48,11 @@ func RegisterServer(router *gin.Engine) {
 				interactionProxy.ServeHTTP(c.Writer, c.Request)
 			})
 		}
+	}
+
+	internalGroup := router.Group("/api/internal")
+	{
+		internalGroup.GET("/users/:user_id/followers", FollowHttp.GetFollowers)
+		internalGroup.GET("/users/:user_id", UserHttp.GetUserByID)
 	}
 }
