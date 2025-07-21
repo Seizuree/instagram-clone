@@ -7,6 +7,7 @@ func RegisterServer(router *gin.Engine) {
 	// The NewReverseProxy function is defined in wizards/proxy.go
 	postProxy := NewReverseProxy(Config.Server.PostServiceURL)
 	interactionProxy := NewReverseProxy(Config.Server.InteractionServiceURL)
+	notificationProxy := NewReverseProxy(Config.Server.NotificationServiceURL)
 
 	apiGroup := router.Group("/api")
 	{
@@ -46,6 +47,14 @@ func RegisterServer(router *gin.Engine) {
 			interactionRoutes.Use(ProxyMiddleware)
 			interactionRoutes.Any("/*proxyPath", func(c *gin.Context) {
 				interactionProxy.ServeHTTP(c.Writer, c.Request)
+			})
+		}
+
+		notificationRoutes := apiGroup.Group("/notifications")
+		{
+			notificationRoutes.Use(ProxyMiddleware)
+			notificationRoutes.Any("/*proxyPath", func(c *gin.Context) {
+				notificationProxy.ServeHTTP(c.Writer, c.Request)
 			})
 		}
 	}

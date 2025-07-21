@@ -1,57 +1,45 @@
 package infrastructures
 
 import (
+	"fmt"
 	"log"
+	"notification-services/config"
+	"sync"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type RabbitMQ struct {
-	Conn    *amqp.Connection
-	Channel *amqp.Channel
+	Conn *amqp.Connection
+	Ch   *amqp.Channel
 }
 
-func NewRabbitMQ(url string) *RabbitMQ {
-	conn, err := amqp.Dial(url)
-	if err != nil {
-		log.Fatalf("❌ Failed to connect to RabbitMQ: %v", err)
-	}
+var (
+	rabbitOnce sync.Once
+	rabbitInst *RabbitMQ
+)
 
-	ch, err := conn.Channel()
-	if err != nil {
-		log.Fatalf("❌ Failed to open a channel: %v", err)
-	}
+func NewRabbitMQ(conf *config.Config) *RabbitMQ {
+	rabbitOnce.Do(func() {
+		dsn := fmt.Sprintf("amqp://%s:%s@%s:%d/",
+			conf.Rabbit.User, conf.Rabbit.Password, conf.Rabbit.Host, conf.Rabbit.Port)
 
-	return &RabbitMQ{
-		Conn:    conn,
-		Channel: ch,
-	}
-}
+		conn, err := amqp.Dial(dsn)
+		if err != nil {
+			log.Fatalf("Failed to connect to RabbitMQ: %s", err)
+		}
 
-func (r *RabbitMQ) DeclareQueue(queueName string) amqp.Queue {
-	q, err := r.Channel.QueueDeclare(
-		queueName,
-		true,  // durable
-		false, // delete when unused
-		false, // exclusive
-		false, // no-wait
-		nil,   // arguments
-	)
-	if err != nil {
-		log.Fatalf("❌ Failed to declare queue: %v", err)
-	}
-	return q
-}
+		ch, err := conn.Channel()
+		if err != nil {
+			log.Fatalf("Failed to open a channel: %s", err)
+		}
 
-func (r *RabbitMQ) Publish(queueName string, body []byte) error {
-	err := r.Channel.Publish(
-		"",        // exchange
-		queueName, // routing key (queue name)
-		false,
-		false,
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        body,
-		})
-	return err
+		rabbitInst = &RabbitMQ{
+			Conn: conn,
+			Ch:   ch,
+		}
+		log.Println("RabbitMQ connected successfully.")
+	})
+
+	return rabbitInst
 }

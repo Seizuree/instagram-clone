@@ -2,27 +2,30 @@ package main
 
 import (
 	"log"
-	"notification-service/config"
-	"notification-service/http"
-	"notification-service/infrastructures"
-	"notification-service/rabbitmq"
-	"notification-service/repositories"
-	"notification-service/usecases"
+	"notification-services/domains/notifications/entities"
+	"notification-services/wizards"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	cfg := config.Load()
-	rmq := infrastructures.NewRabbitMQ(cfg)
-	repo := repositories.NewNotificationRepository()
-	uc := usecases.NewNotificationUseCase(repo)
+	wizards.PostgresDatabase.GetInstance().AutoMigrate(&entities.Notification{})
 
-	go rabbitmq.ConsumeNotifications(rmq, uc)
+	// Start the WebSocket hub in a background goroutine to manage client connections.
+	go wizards.Hub.Run()
+
+	// Create a new RabbitMQ consumer and start it in a background goroutine.
+	// It listens for events and passes them to the use case for processing.
+	consumer := wizards.NewNotificationConsumer(wizards.RabbitMQ, wizards.NotificationUseCase)
+	go consumer.Start()
 
 	router := gin.Default()
-	http.RegisterWebSocketRoutes(router, uc)
+	router.RedirectTrailingSlash = false
 
-	log.Println("Notification service running on :8083")
-	router.Run(":8083")
+	wizards.RegisterServer(router)
+
+	log.Println("Notification service is running on :8083")
+	if err := router.Run(":8083"); err != nil {
+		log.Fatalf("Failed to start notification service: %v", err)
+	}
 }
