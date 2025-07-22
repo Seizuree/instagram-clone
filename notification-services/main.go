@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"notification-services/domains/notifications/entities"
 	"notification-services/wizards"
@@ -24,8 +25,11 @@ func main() {
 
 	wizards.RegisterServer(router)
 
-	log.Println("Notification service is running on :8083")
-	if err := router.Run(":8083"); err != nil {
+	port := wizards.Config.Server.Port
+	addr := fmt.Sprintf(":%d", port)
+
+	log.Printf("Notification service is running on %s", addr)
+	if err := router.Run(addr); err != nil {
 		log.Fatalf("Failed to start notification service: %v", err)
 	}
 }
